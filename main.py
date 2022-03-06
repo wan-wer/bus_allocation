@@ -136,7 +136,7 @@ class TSP(object):
         # 计算城市之间的距离
         for i in range(city_num):
             for j in range(city_num):
-                temp_distance = pow((distance_x[i] - distance_x[j]), 2) + pow((distance_y[i] - distance_y[j]), 2)
+                temp_distance = pow((distance_x_bus_stop[i] - distance_x_bus_stop[j]), 2) + pow((distance_y_bus_stop[i] - distance_y_bus_stop[j]), 2)
                 temp_distance = pow(temp_distance, 0.5)
                 distance_graph[i][j] =float(int(temp_distance + 0.5))
 
@@ -166,10 +166,10 @@ class TSP(object):
         self.nodes2 = [] # 节点对象
 
         # 初始化城市节点
-        for i in range(len(distance_x)):
+        for i in range(len(distance_x_bus_stop)):
             # 在画布上随机初始坐标
-            x = distance_x[i]
-            y = distance_y[i]
+            x = distance_x_bus_stop[i]
+            y = distance_y_bus_stop[i]
             self.nodes.append((x, y))
             # 生成节点椭圆，半径为self.__r
             node = self.canvas.create_oval(x - self.__r,
@@ -283,6 +283,8 @@ class TSP(object):
 
 if __name__ == '__main__':
     (ALPHA, BETA, RHO, Q) = (1.0, 2.0, 0.2, 100.0)
+    # distance_x/y are locations of houses
+    # distance_x/y_bus_stop are locations of bus stop
     distance_x = [
         178, 272, 176, 171, 650, 499, 267, 703, 408, 437, 491, 74, 532, 300, 320, 330, 340,
         700, 710, 720, 705, 680, 690, 670, 650, 666,
@@ -295,12 +297,12 @@ if __name__ == '__main__':
         244, 330, 141, 380, 153, 442, 528, 329, 232, 48, 10, 30, 50, 450, 480, 510, 600, 499,
         265, 343, 165, 50, 63, 491, 275, 348, 222, 480, 30, 40, 50, 5, 10, 60, 100, 32,
         213, 524, 114, 104, 552, 70, 425, 227, 331, 500, 479, 580, 570, 587, 450, 650, 444]
-
     data = list(zip(distance_x, distance_y))
     clf = MeanShift(bandwidth=50)
     clf.fit(data)
-    distance_x, distance_y = zip(*clf.centers_)
-    city_num, ant_num = len(distance_x), 50
+
+    distance_x_bus_stop, distance_y_bus_stop = zip(*clf.centers_)
+    city_num, ant_num = len(distance_x_bus_stop), 50
     distance_graph = [[0.0 for col in range(city_num)] for raw in range(city_num)]
     pheromone_graph = [[1.0 for col in range(city_num)] for raw in range(city_num)]
     TSP(tkinter.Tk(), n=city_num).mainloop()
