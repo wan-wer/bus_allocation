@@ -16,6 +16,15 @@ class MeanShift(object):
         #bandwidth represent radius
         self.bandwidth_ = bandwidth
 
+    def number_in_center_area(self, center, data):
+        number = 0
+        center = np.array(center)
+        for feature in data:
+            feature = np.array(feature)
+            if np.linalg.norm(feature - center) < self.bandwidth_:
+                number += 1
+        return number
+
     def fit(self, data):
         data = np.array(data)
         centers = {}
@@ -51,8 +60,45 @@ class MeanShift(object):
                         break
             if optimzed:
                 break
+        # add the number of points in the area of center
+        for index in centers:
+            number = self.number_in_center_area(centers[index], data)
+            centers[index] = [centers[index], number]
+        # sorted centers from the most to the least
+        centers_num = sorted(centers.values(), key=lambda tup: tup[1])
 
-        self.centers_ = centers
+        # If the distance between two kernels is less than the bandwidth
+        # then we have to remove one because it is a duplicate. Remove the one with fewer points.
+
+        unique = np.ones(len(centers_num), dtype=bool) # to indicate which kernel will be removed
+        centers = np.array([np.array(item[0]) for item in centers_num])
+        for index, center in enumerate(centers_num):
+            if unique[index]:
+                # computer kernels(cen) in the area of center i
+                for cen in range(len(centers)):
+                    if not unique[cen]:
+                        pass
+                    if np.linalg.norm(centers[cen] - centers[index]) < self.bandwidth_ and cen != index:
+                        if center[1] < centers_num[cen][1]:
+                            unique[index] = 0
+                            break
+                        else:
+                            unique[cen] = 0
+        centers_final = centers[unique]
+        self.centers_ = centers_final
+
+        # now we can calculate how many points aren't included
+        num_err = 0 # number of points which aren't included
+        for feature in data:
+            feature = np.array(feature)
+            ind = False # to juge if this point will be included: False not included
+            for center in self.centers_:
+                if np.linalg.norm(center - feature) < self.bandwidth_:
+                    ind = True
+            if not ind:
+                num_err += 1
+        self.err_ = num_err
+
 
 
 if __name__ == '__main__':
@@ -74,9 +120,10 @@ if __name__ == '__main__':
     clf = MeanShift(bandwidth=200)
     clf.fit(data)
     print(clf.centers_)
-    for i in clf.centers_:
+    for i in range(len(clf.centers_)):
         ax.scatter(clf.centers_[i][0], clf.centers_[i][1], marker='*', c='k', s=200, zorder=10)
     for i in range(len(data)):
         ax.scatter(data[i][0], data[i][1])
+    print(clf.err_)
     plt.show()
 
