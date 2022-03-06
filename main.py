@@ -298,10 +298,21 @@ if __name__ == '__main__':
         265, 343, 165, 50, 63, 491, 275, 348, 222, 480, 30, 40, 50, 5, 10, 60, 100, 32,
         213, 524, 114, 104, 552, 70, 425, 227, 331, 500, 479, 580, 570, 587, 450, 650, 444]
     data = list(zip(distance_x, distance_y))
-    clf = MeanShift(bandwidth=50)
-    clf.fit(data)
 
-    distance_x_bus_stop, distance_y_bus_stop = zip(*clf.centers_)
+    # create a serie of bandwidth then choose the one whose error is the smallest
+    band_serie = np.linspace(70, 200, 10)
+    clf_best = MeanShift(bandwidth=200)
+    clf_best.fit(data)
+    band_best = 200
+    for band in band_serie:
+        clf = MeanShift(bandwidth=band)
+        clf.fit(data)
+        if clf_best.err_ > clf.err_:
+            clf_best = clf
+            band_best = band
+    print('the best bandwidth:', band_best)
+
+    distance_x_bus_stop, distance_y_bus_stop = zip(*clf_best.centers_)
     city_num, ant_num = len(distance_x_bus_stop), 50
     distance_graph = [[0.0 for col in range(city_num)] for raw in range(city_num)]
     pheromone_graph = [[1.0 for col in range(city_num)] for raw in range(city_num)]
