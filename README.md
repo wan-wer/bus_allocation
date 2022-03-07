@@ -1,8 +1,8 @@
 # Bus Allocation
-Ce program parmet de trouver des arrêts de bus en fonction des coordonnées des appartements donnés (mean shift)
+Ce program permet de trouver des arrêts de bus en fonction des coordonnées des appartements donnés (mean shift)
 et de caculer le plus court chemin liant ces arrêts (colonie fourmie).
 
-points beiges - Apartements
+Points beiges - Apartements \n
 Bouton Quitter - Quitter le program
 Bouton Initialiser - Nettoyer les arrêts et les chemins affichés et réinitialiser des données 
 Bouton Créer Arrêts - Calculer et afficher des arrêts de bus (croix bleus)
