@@ -21,9 +21,101 @@ from tkinter.messagebox import *
 from bus_stop import *
 
 
-#parametres pour algo colinie fourmie
-(ALPHA, BETA, RHO, Q) = (1.0, 2.0, 0.2, 100.0)
+class MeanShift(object):
+    def __init__(self, bandwidth=4):
+        #bandwidth represent radius
+        self.bandwidth_ = bandwidth
 
+    def number_in_center_area(self, center, data):
+        number = 0
+        center = np.array(center)
+        for feature in data:
+            feature = np.array(feature)
+            if np.linalg.norm(feature - center) < self.bandwidth_:
+                number += 1
+        return number
+    
+    def kernel(self,s, x):
+        return np.exp(-(np.linalg.norm(s-x, axis=1))/1000)
+    
+    def cal_center(self,in_, center):
+        in_ = np.array(in_)
+        result = np.sum(self.kernel(in_, center).reshape(-1,1)*in_, axis=0)/np.sum(self.kernel(in_, center))
+        return result
+
+    def fit(self, data):
+        data = np.array(data)
+        centers = {}
+        # regard every point as a center
+        for i in range(len(data)):
+            centers[i] = np.array(data[i])
+            # print(centers)
+        while True:
+            new_centers = []
+            for i in centers:
+                in_bandwidth = []
+                # put every point near point i in_bandwidth
+                center = centers[i]
+                for feature in data:
+                    feature = np.array(feature)
+                    if np.linalg.norm(feature - center) < self.bandwidth_:
+                        in_bandwidth.append(feature)
+
+                new_center = self.cal_center(in_bandwidth, center)
+                new_centers.append(tuple(new_center))
+
+            uniques = sorted(list(set(new_centers)))
+            prev_centers = dict(centers)
+            centers = {}
+            for i in range(len(uniques)):
+                centers[i] = np.array(uniques[i])
+
+            optimzed = True
+            for i in centers:
+                if not np.linalg.norm(centers[i] - prev_centers[i]) < np.exp(-15):
+                    optimzed = False
+                    if not optimzed:
+                        break
+            if optimzed:
+                break
+        # add the number of points in the area of center
+        for index in centers:
+            number = self.number_in_center_area(centers[index], data)
+            centers[index] = [centers[index], number]
+        # sorted centers from the most to the least
+        centers_num = sorted(centers.values(), key=lambda tup: tup[1])
+
+        # If the distance between two kernels is less than the bandwidth
+        # then we have to remove one because it is a duplicate. Remove the one with fewer points.
+
+        unique = np.ones(len(centers_num), dtype=bool) # to indicate which kernel will be removed
+        centers = np.array([np.array(item[0]) for item in centers_num])
+        for index, center in enumerate(centers_num):
+            if unique[index]:
+                # computer kernels(cen) in the area of center i
+                for cen in range(len(centers)):
+                    if not unique[cen]:
+                        pass
+                    if np.linalg.norm(centers[cen] - centers[index]) < self.bandwidth_ and cen != index:
+                        if center[1] < centers_num[cen][1]:
+                            unique[index] = 0
+                            break
+                        else:
+                            unique[cen] = 0
+        centers_final = centers[unique]
+        self.centers_ = centers_final
+
+        # now we can calculate how many points aren't included
+        num_err = 0 # number of points which aren't included
+        for feature in data:
+            feature = np.array(feature)
+            ind = False # to juge if this point will be included: False not included
+            for center in self.centers_:
+                if np.linalg.norm(center - feature) < self.bandwidth_:
+                    ind = True
+            if not ind:
+                num_err += 1
+        self.err_ = num_err
 
         
 class Ant(object):
@@ -121,14 +213,14 @@ class Arret_Bus(object):
 
 class TSP(object):
 
-    def __init__(self, root, carte, width =800, height = 1000): 
+    def __init__(self, root, carte, width =800, height = 800): 
 
         self.root = root                               
         self.width = width      
         self.height = height
         self.carte = carte
         self.villes = self.carte[0]
-        
+        self.root.configure(bg="wheat")
         #Creation de Menu
         menubar = tkinter.Menu(root)
         menubar.add_command(label="Quitter", command=self.quite)
@@ -154,25 +246,22 @@ class TSP(object):
         self.__boutonArrets.pack(side = LEFT, padx=5,pady=5)
         self.__boutonSearch = Button(self.barreOutils, text='Calculer lignes')
         self.__boutonSearch.pack(side = LEFT,padx=5, pady=5)
-        self.__boutonArreter = Button(self.barreOutils, text='Arreter')
-        self.__boutonArreter.pack(side = LEFT,padx=5, pady=5)
+
         
         #Fonctions des boutons
         self.__boutonInit.config(command = self.new)
         self.__boutonArrets.config(command = self.arret_bus)
         self.__boutonSearch.config(command = self.search_path)
-        self.__boutonArreter.config(command = self.stop)
+
         # tkinter.Canvas
         self.canvas = tkinter.Canvas(
                 root,
                 width = self.width,
                 height = self.height,
-                bg = "#EBEBEB",           
-                xscrollincrement = 1,
-                yscrollincrement = 1,
+                bg = 'tan',           
             )
 
-        self.canvas.pack(side = TOP,expand = tkinter.YES, fill = tkinter.BOTH,padx = 5,pady = 5)
+        self.canvas.pack(side = TOP,padx = 5,pady = 5)
         self.title("Allocation de bus")
         
 
@@ -195,8 +284,10 @@ class TSP(object):
         self.__lock.release()
 
         self.clear()     # eliminer les donnees
+        self.arrets = [] #liste des arrets
         self.nodes = []  #liste des figures de villes(appartements)
         self.nodes2 = [] #liste des figures des arrets de bus
+        self.ants = [] #liste des fourmis
 
         # initialisation des villes
         for i in range(len(self.villes)):
@@ -213,11 +304,25 @@ class TSP(object):
         
         self.__boutonArrets.config(state = NORMAL)
         self.__boutonSearch.config(state = DISABLED)
-    
-    #fonction pour changer de carte
+        
+    # nettoyer canvas
+    def clear(self):
+        for item in self.canvas.find_all():
+            self.canvas.delete(item) 
+            
+    # quitter application
+    def quite(self):
+        self.__lock.acquire()
+        self.__running = False
+        self.__lock.release()
+        self.root.destroy()
+        sys.exit()            
+        
+    #changer de carte
     def select_carte(self):
         self.villes = self.carte[self.radioVar.get()]
         self.new()
+        
     # lier des noeuds par ordre
     def line(self, order, couleur,largeur):
         # eliminer le trait d'avant
@@ -228,25 +333,6 @@ class TSP(object):
             return i2
 
         reduce(line2, order, order[0])  #lier tous les points dans order un par un
-
-    # nettoyer canvas
-    def clear(self):
-        for item in self.canvas.find_all():
-            self.canvas.delete(item)
-            
-        # quitter application
-    def quite(self):
-        self.__lock.acquire()
-        self.__running = False
-        self.__lock.release()
-        self.root.destroy()
-        sys.exit()
-
-    # arreter le calcul en cours
-    def stop(self):
-        self.__lock.acquire()
-        self.__running = False
-        self.__lock.release()
             
     def arret_bus(self):
         # create a serie of bandwidth then choose the one whose error is the smallest
@@ -267,17 +353,10 @@ class TSP(object):
         for i in range(len(self.arrets.location)):
             x = self.arrets.location[i][0]
             y = self.arrets.location[i][1]
-            # dessiner les noeuds de rayon self.__r
-            #node = self.canvas.create_rectangle(x - self.__r,
-            #        y - self.__r, x + self.__r, y + self.__r,
-            #        fill = "#FF7F50",      
-            #        outline = "#000000",   
-            #        tags = "node",
-            #    )
-            node_horizontal = self.canvas.create_line(x-self.__r*3, y+self.__r*3, x+self.__r*3, y-self.__r*3, 
-                    fill = "blue", tags = "node")
-            node_vertical = self.canvas.create_line(x-self.__r*3, y-self.__r*3, x+self.__r*3, y+self.__r*3, 
-                    fill = "blue",tags = "node")
+            node_horizontal = self.canvas.create_line(x-self.__r*2, y+self.__r*2, x+self.__r*2, y-self.__r*2, 
+                    fill = "ForestGreen", tags = "node",width=2)
+            node_vertical = self.canvas.create_line(x-self.__r*2, y-self.__r*2, x+self.__r*2, y+self.__r*2, 
+                    fill = "ForestGreen",tags = "node",width=2)
                     
             self.nodes2.append([node_vertical,node_horizontal])
         self.n = len(self.arrets.location) #nombre d'arrets
@@ -328,7 +407,7 @@ class TSP(object):
             self.iter += 1
             if self.iter >= 400:
                 self.__running = False
-                self.line(self.best_ant.path,'blue',3)
+                self.line(self.best_ant.path,"ForestGreen",3)
 
     # MAJ de pheromone
     def __update_pheromone_gragh(self):
@@ -353,7 +432,8 @@ class TSP(object):
         
         
 if __name__ == '__main__':
-
-
+    #parametres pour algo colinie fourmie
+    (ALPHA, BETA, RHO, Q) = (1.0, 2.0, 0.2, 100.0)
     ant_num = 50
+    #fenetre
     TSP(tkinter.Tk(),carte).mainloop()
