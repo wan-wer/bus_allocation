@@ -336,7 +336,7 @@ class TSP(object):
             
     def arret_bus(self):
         # create a serie of bandwidth then choose the one whose error is the smallest
-        band_serie = np.linspace(60, 200, 10)
+        band_serie = np.linspace(150, 75, 20)
         clf_best = MeanShift(bandwidth=200)
         clf_best.fit(self.villes)
         band_best = 200
@@ -346,6 +346,7 @@ class TSP(object):
             if clf_best.err_ > clf.err_:
                 clf_best = clf
                 band_best = band
+        print(band_best)
         clf = MeanShift(bandwidth=band_best)
         clf.fit(self.villes)
         self.arrets = clf.centers_
