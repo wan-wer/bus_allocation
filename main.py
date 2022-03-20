@@ -120,7 +120,7 @@ class MeanShift(object):
         
 class Ant(object):
 
-    # 初始化
+    # initialize
     def __init__(self, ID, arrets):
         self.ID = ID                 # ID
         self.arrets = arrets
@@ -215,7 +215,14 @@ class TSP(object):
 
     def __init__(self, root, carte, width =800, height = 800): 
 
-        self.root = root                               
+        self.root = root
+        ww = 700
+        wh = 650
+        sw = self.root.winfo_screenwidth()
+        sh = self.root.winfo_screenheight()
+        x = (sw - ww) / 2
+        y = (sh - wh) / 2
+        self.root.geometry("%dx%d+%d+%d" % (ww, wh, x, y))
         self.width = width      
         self.height = height
         self.carte = carte
@@ -258,19 +265,28 @@ class TSP(object):
                 root,
                 width = self.width,
                 height = self.height,
-                bg = 'tan',           
+                bg = 'tan',
+                scrollregion=(0, 0, 800, 1000)
             )
 
-        self.canvas.pack(side = TOP,padx = 5,pady = 5)
+        self.canvas.pack(side = TOP,padx = 5,pady = 5, expand=True, fill=BOTH)
         self.title("Allocation de bus")
-        
+        hbar = tkinter.Scrollbar(self.canvas, orient=HORIZONTAL)
+        hbar.pack(side=BOTTOM, fill=X)
+        hbar.config(command=self.canvas.xview)
+        vbar = tkinter.Scrollbar(self.canvas, orient=VERTICAL)
+        vbar.pack(side=RIGHT, fill=Y)
+        vbar.config(command=self.canvas.yview)
+        self.canvas.config(xscrollcommand=hbar.set, yscrollcommand=vbar.set)
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
 
         self.__r = 5 #rayons des villes et arrets traces
         self.__lock = threading.RLock()     
 
         self.new()
 
-      
+    def _on_mousewheel(self, event):
+        self.canvas.yview_scroll(-1 * (event.delta // 120), "units")
 
     def title(self, s):
 
@@ -426,7 +442,7 @@ class TSP(object):
             for j in range(self.n):
                 self.arrets.pheromone_graph[i][j] = self.arrets.pheromone_graph[i][j] * RHO + temp_pheromone[i][j]
 
-    # 主循环
+    # main loop
     def mainloop(self):
         self.root.mainloop()
         
