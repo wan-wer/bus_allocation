@@ -362,7 +362,6 @@ class TSP(object):
             if clf_best.err_ > clf.err_:
                 clf_best = clf
                 band_best = band
-        print(band_best)
         clf = MeanShift(bandwidth=band_best)
         clf.fit(self.villes)
         self.arrets = clf.centers_
