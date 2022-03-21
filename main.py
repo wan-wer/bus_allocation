@@ -114,18 +114,28 @@ class MeanShift(object):
             if not ind:
                 num_err += 1
         self.err_ = num_err
+        # For every center, we calculate its number of civilians
+        self.habitant = dict()
+        for center in self.centers_:
+            habitant = 0
+            for feature in data:
+                feature = np.array(feature)
+                if np.linalg.norm(center - feature) < self.bandwidth_:
+                    habitant += 1
+            self.habitant[tuple(center)] = habitant
 
         
 class Ant(object):
 
     # initialize
-    def __init__(self, ID, arrets):
+    def __init__(self, ID, arrets, gare_centre = 0):
         self.ID = ID                 # ID
         self.arrets = arrets
-        self.__clean_data()          # random birth place
+        self.clean_data()          # random birth place
+        self.gare_centre = gare_centre
+        self.ant_another = None  # another ant
 
-
-    def __clean_data(self):
+    def clean_data(self):
 
         self.path = []               # trail
         self.total_distance = 0.0    # distance of trail
@@ -138,9 +148,11 @@ class Ant(object):
         self.path.append(city_index)
         self.open_table_city[city_index] = False
         self.move_count = 1
-
+        city_tuple = tuple(self.arrets.location[city_index])
+        self.trajet_habitant = self.arrets.habitant[city_tuple] # the sum of numbers of those stops that ant has passed
+        self.cout = 0.5*self.total_distance + 0.5*self.trajet_habitant
     # next city
-    def __choice_next_city(self):
+    def choice_next_city(self):
 
         next_city = -1
         select_citys_prob = [0.0 for i in range(self.arrets.n)]
@@ -172,7 +184,7 @@ class Ant(object):
 
         temp_distance = 0.0
 
-        for i in range(1, self.arrets.n):
+        for i in range(1, len(self.path)):
             start, end = self.path[i], self.path[i-1]
             temp_distance += self.arrets.distance_graph[start][end]
 
@@ -181,33 +193,38 @@ class Ant(object):
 
 
     # move
-    def __move(self, next_city):
+    def move(self, next_city):
 
         self.path.append(next_city)
         self.open_table_city[next_city] = False
+        if next_city != self.gare_centre:
+            self.ant_another.open_table_city[next_city] = False
         self.total_distance += self.arrets.distance_graph[self.current_city][next_city]
         self.current_city = next_city
         self.move_count += 1
+        self.trajet_habitant += self.arrets.habitant[tuple(self.arrets.location[next_city])]
+        self.cout = 0.5 * self.total_distance + 0.5 * self.trajet_habitant
 
     # search path
     def search_path(self):
 
-        self.__clean_data()
+        self.clean_data()
 
         while self.move_count < self.arrets.n:
-            next_city =  self.__choice_next_city()
-            self.__move(next_city)
+            next_city =  self.choice_next_city()
+            self.move(next_city)
 
         self.__cal_total_distance()
 
 #classe de bus qui sera initialisé dans classe TSP suivante pour transférer les graphes de distance et de phéromone dans classe ant
 class Arret_Bus(object):
     
-    def __init__(self,location, distance_graphe, pheromone_graph):
+    def __init__(self,location, distance_graphe, pheromone_graph, habitant):
         self.location = location
         self.distance_graphe = distance_graphe
         self.pheromone_graph = pheromone_graph
         self.n = len(self.location)
+        self.habitant = habitant
         
 class ZoneAffichage(Canvas):
     
@@ -353,6 +370,7 @@ class TSP(object):
         self.new()
         
     # lier des noeuds par ordre
+    # dessiner la premiere ligne de bus
     def line(self, order, couleur,largeur):
         # eliminer le trait d'avant
         self.canvas.delete("line")
@@ -362,7 +380,14 @@ class TSP(object):
             return i2
 
         reduce(line2, order, order[0])  #lier tous les points dans order un par un
-            
+    # dessiner la deuxieme ligne de bus
+    def line_2(self, order, couleur, largeur):
+        def line2(i1, i2):
+            p1, p2 = self.arrets.location[i1], self.arrets.location[i2]
+            self.canvas.create_line(p1[0], p1[1]-2, p2[0], p2[1]-2, fill=couleur, tags="line", width=largeur)
+            return i2
+
+        reduce(line2, order, order[0])  # lier tous les points dans order un par un
     def arret_bus(self):
         # create a serie of bandwidth then choose
         # the one whose error is the smallest
@@ -379,7 +404,7 @@ class TSP(object):
         clf = MeanShift(bandwidth=band_best)
         clf.fit(self.villes)
         self.arrets = clf.centers_
-        self.arrets = Arret_Bus(clf.centers_,[],[])
+        self.arrets = Arret_Bus(clf.centers_,[],[],clf.habitant)
         for i in range(len(self.arrets.location)):
             x = self.arrets.location[i][0]
             y = self.arrets.location[i][1]
@@ -428,40 +453,74 @@ class TSP(object):
             #reactive l'interaction avec canvas pour que l'utilisateur puisse choisir a nouveau le centrale
             self.clickActive = True
             tkinter.messagebox.showinfo(title='Echec',message='Pas de arret détecté aux alentours de clique. Veuillez réessayer !')
-        
-    
-    # calculer des lignes de bus par colonie fourmie
-    def search_path(self, evt = None):
 
-        
+    # calculer des lignes de bus par colonie fourmie
+    def search_path(self, evt=None):
+
         self.__lock.acquire()
         self.__running = True
         self.__lock.release()
+        self.centrale_index = -1
+        for index, center in enumerate(self.arrets.location):
+            if (np.array(center) == np.array(self.centrale)).all():
+                self.centrale_index = index
+                break
 
-        self.ants = [Ant(ID,self.arrets) for ID in range(ant_num)]  # initialisation colonie fourmie
-        self.best_ant = Ant(-1,self.arrets)                          
-        self.best_ant.total_distance = 1 << 31            
-        self.iter = 1       # initialisation nombre iteration
-        
+        self.ants = [Ant(ID, self.arrets, self.centrale_index) for ID in
+                     range(ant_num)]  # initialisation colonie fourmie, the first colony
+        self.ants2 = [Ant(ID, self.arrets, self.centrale_index) for ID in range(ant_num, 2 * ant_num)]  # the second colony
+        for i in range(ant_num):
+            self.ants[i].ant_another = self.ants2[i]
+            self.ants2[i].ant_another = self.ants[i]
+
+        self.best_ant = Ant(-1, self.arrets)
+        self.best_ant.cout = 1 << 31
+        self.best_ant2 = Ant(-2, self.arrets)
+        self.best_ant2.cout = 1 << 31
+        self.iter = 1  # initialisation nombre iteration
+
         while self.__running:
-            
-            for ant in self.ants:
-                #chercher une voie
-                ant.search_path()
-               #comparer avec la meilleure fourmie actuelle
-                if ant.total_distance < self.best_ant.total_distance:
-                    # mise à jour de meilleure solution
-                    self.best_ant = copy.deepcopy(ant)
+            for index_ant in range(ant_num):
+                ant1 = self.ants[index_ant]
+                ant2 = self.ants2[index_ant]
+                ant1.clean_data()
+                ant2.clean_data()
+                while np.any(ant1.open_table_city) or np.any(ant2.open_table_city):
+                    # if both ant1 and ant2 can move
+                    if np.any(ant1.open_table_city) and np.any(ant2.open_table_city):
+                        # we choose the ant acoording to its cout(ant.cout), the more cout the ant has,
+                        # the less possible it is to be chosen
+                        ant1_cout = ant1.cout
+                        ant2_cout = ant2.cout
+                        ant_chosen = np.random.choice([1, 2], 1, [1 / ant1_cout, 1 / ant2_cout])[0]
+                        if ant_chosen == 1:
+                            ant_chosen = ant1
+                        else:
+                            ant_chosen = ant2
+                    # only ant1 can move
+                    elif np.any(ant1.open_table_city):
+                        ant_chosen = ant1
+                    # only ant2 can move
+                    else:
+                        ant_chosen = ant2
+                    next_city = ant_chosen.choice_next_city()
+                    ant_chosen.move(next_city)
+                # mise à jour de meilleure solution
+                if ant1.cout + ant2.cout < self.best_ant.cout + self.best_ant2.cout:
+                    self.best_ant = copy.deepcopy(ant1)
+                    self.best_ant2 = copy.deepcopy(ant2)
             # MAJ de phéromone
             self.__update_pheromone_gragh()
             # lier des points
-            self.line(self.best_ant.path,"#000000",1)
+            self.line(self.best_ant.path, "ForestGreen", 1)
+            self.line_2(self.best_ant2.path, "#a52a2a", 1)
             # mise a jour de canvas
             self.canvas.update()
             self.iter += 1
             if self.iter >= 400:
                 self.__running = False
-                self.line(self.best_ant.path,"ForestGreen",3)
+                self.line(self.best_ant.path, "ForestGreen", 3)
+                self.line_2(self.best_ant2.path, "#a52a2a", 3)
 
     # MAJ de pheromone
     def __update_pheromone_gragh(self):
@@ -469,8 +528,14 @@ class TSP(object):
         # pheromone de chaque fourmie
         temp_pheromone = [[0.0 for col in range(self.n)] for raw in range(self.n)]
         for ant in self.ants:
-            for i in range(1,self.n):
-                start, end = ant.path[i-1], ant.path[i]
+            for i in range(1, len(ant.path)):
+                start, end = ant.path[i - 1], ant.path[i]
+                # laisser de pheromone entre deux arrets voisins, inversement proportionnel a la distence
+                temp_pheromone[start][end] += Q / ant.total_distance
+                temp_pheromone[end][start] = temp_pheromone[start][end]
+        for ant in self.ants2:
+            for i in range(1, len(ant.path)):
+                start, end = ant.path[i - 1], ant.path[i]
                 # laisser de pheromone entre deux arrets voisins, inversement proportionnel a la distence
                 temp_pheromone[start][end] += Q / ant.total_distance
                 temp_pheromone[end][start] = temp_pheromone[start][end]
