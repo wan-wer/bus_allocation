@@ -87,7 +87,6 @@ class MeanShift(object):
 
         # If the distance between two kernels is less than the bandwidth
         # then we have to remove one because it is a duplicate. Remove the one with fewer points.
-
         unique = np.ones(len(centers_num), dtype=bool) # to indicate which kernel will be removed
         centers = np.array([np.array(item[0]) for item in centers_num])
         for index, center in enumerate(centers_num):
@@ -351,8 +350,9 @@ class TSP(object):
         reduce(line2, order, order[0])  #lier tous les points dans order un par un
             
     def arret_bus(self):
-        # create a serie of bandwidth then choose the one whose error is the smallest
-        band_serie = np.linspace(150, 75, 20)
+        # create a serie of bandwidth then choose
+        # the one whose error is the smallest
+        band_serie = np.linspace(60, 200, 10)
         clf_best = MeanShift(bandwidth=200)
         clf_best.fit(self.villes)
         band_best = 200
@@ -449,7 +449,7 @@ class TSP(object):
         
 if __name__ == '__main__':
     #parametres pour algo colinie fourmie
-    (ALPHA, BETA, RHO, Q) = (1.0, 2.0, 0.2, 100.0)
+    (ALPHA, BETA, RHO, Q) = (1.0, 2.0, 0.15, 100.0)
     ant_num = 50
     #fenetre
     TSP(tkinter.Tk(),carte).mainloop()
