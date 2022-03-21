@@ -1,6 +1,7 @@
 # -*- coding:utf-8 -*-
-import numpy as np
-import matplotlib.pyplot as plt
+#Ici sont definies des differentes cartes. 
+#Il est possible d'ajouter de nouvelle carte ici suivant du forme correcte 
+#[[latitudes],[longitudes]] dans la variable carte
 
 distance_x1 = [414, 602, 575, 660, 659, 208, 338, 675, 325, 377, 124, 53, 649, 636, 662, 
                660, 176, 206, 393, 430, 679, 144, 362, 178, 450, 403, 525, 480, 342, 750, 
@@ -51,29 +52,4 @@ data4 = list(zip(distance_x4, distance_y4))
 
 carte = [data1, data2, data3, data4]
 
-if __name__ == '__main__':
-    distance_x = [
-        178, 272, 176, 171, 650, 499, 267, 703, 408, 437, 491, 74, 532, 300, 320, 330, 340,
-        700, 710, 720, 705, 680, 690, 670, 650, 666,
-        626, 42, 163, 508, 229, 576, 147, 560, 35, 714, 400, 450, 500, 510, 530, 530, 540, 550,
-        517, 64, 675, 690, 628, 87, 240, 705, 699, 150, 400, 400, 400, 700, 710, 705, 680,
-        614, 36, 482, 666, 597, 209, 201, 492, 294, 100, 150, 5, 10, 15, 20, 25, 30, 40]
-    distance_y = [
-        170, 395, 198, 151, 242, 556, 57, 401, 305, 421, 267, 105, 525, 17, 45, 55, 24,
-        600, 700, 690, 688, 680, 666, 599, 701, 720,
-        244, 330, 141, 380, 153, 442, 528, 329, 232, 48, 10, 30, 50, 450, 480, 510, 600, 499,
-        265, 343, 165, 50, 63, 491, 275, 348, 222, 480, 30, 40, 50, 5, 10, 60, 100, 32,
-        213, 524, 114, 104, 552, 70, 425, 227, 331, 500, 479, 580, 570, 587, 450, 650, 444]
-    data = list(zip(distance_x, distance_y))
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    clf = MeanShift(bandwidth=200)
-    clf.fit(data)
-    print(clf.centers_)
-    for i in range(len(clf.centers_)):
-        ax.scatter(clf.centers_[i][0], clf.centers_[i][1], marker='*', c='k', s=200, zorder=10)
-    for i in range(len(data)):
-        ax.scatter(data[i][0], data[i][1])
-    print(clf.err_)
-    plt.show()
 
