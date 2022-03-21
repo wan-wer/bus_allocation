@@ -427,7 +427,7 @@ class TSP(object):
         if len(autour)==0:
             #reactive l'interaction avec canvas pour que l'utilisateur puisse choisir a nouveau le centrale
             self.clickActive = True
-            self.root.messagebox.showinfo(title='Echec',message='Pas de arret détecté aux alentours de clique. Veuillez réessayer !')
+            tkinter.messagebox.showinfo(title='Echec',message='Pas de arret détecté aux alentours de clique. Veuillez réessayer !')
         
     
     # calculer des lignes de bus par colonie fourmie
