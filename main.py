@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Sun Mar  6 15:38:41 2022
-
 @author: hp
 """
 
@@ -209,6 +208,21 @@ class Arret_Bus(object):
         self.distance_graphe = distance_graphe
         self.pheromone_graph = pheromone_graph
         self.n = len(self.location)
+        
+class ZoneAffichage(Canvas):
+    
+    def __init__(self, parent, w, h, bgcolor, scroll):
+        self.__parent = parent
+        self.__w = w
+        self.__h = h
+        Canvas.__init__(self, parent.root, width=w, height=h, bg=bgcolor, scrollregion=scroll)
+        
+    def OnClick(self,event):
+        #si interaction avec canvas est active, alors prendre les coordonnees
+        #et envoyer ces coordonnes a la fonction centrale dans classe TSP
+        if self.__parent.clickActive == True:
+            self.__parent.clickActive = False
+            self.__parent.FixCentrale(event.x,event.y)
 
 class TSP(object):
 
@@ -250,6 +264,8 @@ class TSP(object):
         self.__boutonInit.pack(side = LEFT,padx=5, pady=5)
         self.__boutonArrets = Button(self.barreOutils, text='Créer arrêts')
         self.__boutonArrets.pack(side = LEFT, padx=5,pady=5)
+        self.__boutonCentral = Button(self.barreOutils, text='Choisir Centrale')
+        self.__boutonCentral.pack(side = LEFT, padx=5,pady=5)
         self.__boutonSearch = Button(self.barreOutils, text='Calculer lignes')
         self.__boutonSearch.pack(side = LEFT,padx=5, pady=5)
 
@@ -257,18 +273,14 @@ class TSP(object):
         #Fonctions des boutons
         self.__boutonInit.config(command = self.new)
         self.__boutonArrets.config(command = self.arret_bus)
+        self.__boutonCentral.config(command = self.active)
         self.__boutonSearch.config(command = self.search_path)
 
         # tkinter.Canvas
-        self.canvas = tkinter.Canvas(
-                root,
-                width = self.width,
-                height = self.height,
-                bg = 'tan',
-                scrollregion=(0, 0, 800, 1000)
-            )
-
+        self.canvas = ZoneAffichage(self, self.width, self.height, 'tan', (0, 0, 800, 1000))
         self.canvas.pack(side = TOP,padx = 5,pady = 5, expand=True, fill=BOTH)
+        self.clickActive = False
+        self.canvas.bind('<Button-1>', self.canvas.OnClick)
         self.title("Allocation de bus")
         hbar = tkinter.Scrollbar(self.canvas, orient=HORIZONTAL)
         hbar.pack(side=BOTTOM, fill=X)
@@ -303,6 +315,7 @@ class TSP(object):
         self.nodes = []  #liste des figures de villes(appartements)
         self.nodes2 = [] #liste des figures des arrets de bus
         self.ants = [] #liste des fourmis
+        self.centrale = []
 
         # initialisation des villes
         for i in range(len(self.villes)):
@@ -319,6 +332,7 @@ class TSP(object):
         
         self.__boutonArrets.config(state = NORMAL)
         self.__boutonSearch.config(state = DISABLED)
+        self.__boutonCentral.config(state = DISABLED)
         
     # nettoyer canvas
     def clear(self):
@@ -389,9 +403,33 @@ class TSP(object):
                 self.arrets.pheromone_graph[i][j] = 1.0
         
         self.__boutonArrets.config(state = DISABLED)
-        self.__boutonSearch.config(state = NORMAL)
+        self.__boutonCentral.config(state = NORMAL)
                 
-
+    def active(self):
+        #activer l'interaction en clique avec le canvas
+        self.clickActive = True
+    
+    def FixCentrale(self,x,y):
+        autour = []
+        for i in range (self.arrets.n):
+            if abs(x-self.arrets.location[i][0]) <= 2*self.__r and abs(y-self.arrets.location[i][1]) <= 2*self.__r:
+                autour.append(i)
+        #s'il y a exactement un arret autour de clique
+        if len(autour)==1:
+            self.centrale = self.arrets.location[autour[0]]
+            self.canvas.create_line(self.centrale[0]-self.__r*2, self.centrale[1]+self.__r*2, self.centrale[0]+self.__r*2, self.centrale[1]-self.__r*2, 
+                    fill = "Red", tags = "node",width=2.5)
+            self.canvas.create_line(self.centrale[0]-self.__r*2, self.centrale[1]-self.__r*2, self.centrale[0]+self.__r*2, self.centrale[1]+self.__r*2, 
+                    fill = "Red",tags = "node",width=2.5)
+            self.__boutonSearch.config(state = NORMAL)
+            self.__boutonCentral.config(state = DISABLED)
+        #s'il n'y a pas d'arret assez proche de clique
+        if len(autour)==0:
+            #reactive l'interaction avec canvas pour que l'utilisateur puisse choisir a nouveau le centrale
+            self.clickActive = True
+            self.root.messagebox.showinfo(title='Echec',message='Pas de arret détecté aux alentours de clique. Veuillez réessayer !')
+        
+    
     # calculer des lignes de bus par colonie fourmie
     def search_path(self, evt = None):
 
