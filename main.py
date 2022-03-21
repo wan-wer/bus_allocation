@@ -478,6 +478,7 @@ class TSP(object):
         self.best_ant2 = Ant(-2, self.arrets)
         self.best_ant2.cout = 1 << 31
         self.iter = 1  # initialisation nombre iteration
+        performance_best = 1 << 31
 
         while self.__running:
             for index_ant in range(ant_num):
@@ -506,9 +507,15 @@ class TSP(object):
                     next_city = ant_chosen.choice_next_city()
                     ant_chosen.move(next_city)
                 # mise à jour de meilleure solution
-                if ant1.cout + ant2.cout < self.best_ant.cout + self.best_ant2.cout:
+                # if the civilians that two bus transport is more balanced,
+                # the performance is better
+                performance_this_time = ant1.total_distance + ant2.total_distance\
+                                        + 100*(1/ant1.trajet_habitant+1/ant2.trajet_habitant)
+                if performance_this_time < performance_best:
                     self.best_ant = copy.deepcopy(ant1)
                     self.best_ant2 = copy.deepcopy(ant2)
+                    performance_best = self.best_ant.total_distance + self.best_ant2.total_distance \
+                                       + 100 * (1 / self.best_ant.trajet_habitant + 1 / self.best_ant2.trajet_habitant)
             # MAJ de phéromone
             self.__update_pheromone_gragh()
             # lier des points
