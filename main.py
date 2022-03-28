@@ -152,10 +152,12 @@ class Ant(object):
         city_tuple = tuple(self.arrets.location[city_index])
         self.trajet_habitant = self.arrets.habitant[city_tuple] # the sum of numbers of those stops that ant has passed
         self.cout = 0.5*self.total_distance + 0.5*self.trajet_habitant
+        
     # add accompanied ant
     def add_another(self, another_ant):
         self.ant_another = another_ant
-        self.ant_another.open_table_city[self.path[0]] = False
+        if self.path[0] != self.gare_centre:
+            self.ant_another.open_table_city[self.path[0]] = False
         
     # next city
     def choice_next_city(self):
@@ -291,6 +293,8 @@ class TSP(object):
         self.__boutonCentral.pack(side = LEFT, padx=5,pady=5)
         self.__boutonSearch = Button(self.barreOutils, text='Calculer lignes')
         self.__boutonSearch.pack(side = LEFT,padx=5, pady=5)
+        self.__label_cout = Label(self.barreOutils,text = '')
+        self.__label_cout.pack(side = TOP,padx=5,pady=5)
 
         
         #Fonctions des boutons
@@ -339,6 +343,7 @@ class TSP(object):
         self.nodes2 = [] #liste des figures des arrets de bus
         self.ants = [] #liste des fourmis
         self.centrale = []
+        self.__label_cout.config(text = '')
 
         # initialisation des villes
         for i in range(len(self.villes)):
@@ -439,7 +444,32 @@ class TSP(object):
     def active(self):
         #activer l'interaction en clique avec le canvas
         self.clickActive = True
-    
+        self.__boutonSearch.config(state = DISABLED)
+        self.clear()
+        self.centrale = []
+        self.__label_cout.config(text = '')
+        self.centrale_index = -1
+        for i in range(len(self.villes)):
+            x = self.villes[i][0]
+            y = self.villes[i][1]
+            # dessiner les noeuds de rayon self.__r
+            self.canvas.create_oval(x - self.__r,
+                    y - self.__r, x + self.__r, y + self.__r,
+                    fill = "#F5DEB3",      
+                    outline = "#000000",   
+                    tags = "node",
+                )
+            
+        for i in range(len(self.arrets.location)):
+            x = self.arrets.location[i][0]
+            y = self.arrets.location[i][1]
+            node_horizontal = self.canvas.create_line(x-self.__r*2, y+self.__r*2, x+self.__r*2, y-self.__r*2, 
+                    fill = "ForestGreen", tags = "node",width=2)
+            node_vertical = self.canvas.create_line(x-self.__r*2, y-self.__r*2, x+self.__r*2, y+self.__r*2, 
+                    fill = "ForestGreen",tags = "node",width=2)
+        
+        
+        
     def FixCentrale(self,x,y):
         autour = []
         for i in range (self.arrets.n):
@@ -453,7 +483,6 @@ class TSP(object):
             self.canvas.create_line(self.centrale[0]-self.__r*2, self.centrale[1]-self.__r*2, self.centrale[0]+self.__r*2, self.centrale[1]+self.__r*2, 
                     fill = "Red",tags = "node",width=2.5)
             self.__boutonSearch.config(state = NORMAL)
-            self.__boutonCentral.config(state = DISABLED)
         #s'il n'y a pas d'arret assez proche de clique
         if len(autour)==0:
             #reactive l'interaction avec canvas pour que l'utilisateur puisse choisir a nouveau le centrale
@@ -462,7 +491,9 @@ class TSP(object):
 
     # calculer des lignes de bus par colonie fourmie
     def search_path(self, evt=None):
-
+        self.__boutonSearch.config(state = DISABLED)
+        self.__boutonCentral.config(state = DISABLED)
+        self.__label_cout.config(text = '')
         self.__lock.acquire()
         self.__running = True
         self.__lock.release()
@@ -475,17 +506,17 @@ class TSP(object):
         self.ants = [Ant(ID, self.arrets, self.centrale_index) for ID in
                      range(ant_num)]  # initialisation colonie fourmie, the first colony
         self.ants2 = [Ant(ID, self.arrets, self.centrale_index) for ID in range(ant_num, 2 * ant_num)]  # the second colony
-        for i in range(ant_num):
-            self.ants[i].add_another(self.ants2[i])
-            self.ants2[i].add_another(self.ants[i])
+#        for i in range(ant_num):
+#            self.ants[i].add_another(self.ants2[i])
+#            self.ants2[i].add_another(self.ants[i])
 
         self.best_ant = Ant(-1, self.arrets)
         self.best_ant.cout = 1 << 31
         self.best_ant2 = Ant(-2, self.arrets)
         self.best_ant2.cout = 1 << 31
         self.iter = 1  # initialisation nombre iteration
-        # the better the two ants behave, the bigger the value of the performance is, the better the ant is. 
-        performance_best = -1 << 31
+        # the smaller the value of the cout is, the better the ant is. 
+        cout_best = 1 << 31
 
         while self.__running:
             for index_ant in range(ant_num):
@@ -493,6 +524,8 @@ class TSP(object):
                 ant2 = self.ants2[index_ant]
                 ant1.clean_data()
                 ant2.clean_data()
+                ant1.add_another(ant2)
+                ant2.add_another(ant1)
                 while np.any(ant1.open_table_city) or np.any(ant2.open_table_city):
                     # if both ant1 and ant2 can move
                     if np.any(ant1.open_table_city) and np.any(ant2.open_table_city):
@@ -515,14 +548,15 @@ class TSP(object):
                     ant_chosen.move(next_city)
                 # mise à jour de meilleure solution
                 # if the civilians that two bus transport is more balanced,
-                # the performance is better
-                performance_this_time = -(ant1.total_distance + ant2.total_distance)\
-                                        + 1/(1/ant1.trajet_habitant+1/ant2.trajet_habitant)
-                if performance_this_time > performance_best:
+                # the cout is better
+                cout_this_time = ant1.total_distance + ant2.total_distance\
+                                        - 1/(1/ant1.trajet_habitant+1/ant2.trajet_habitant)
+                if cout_this_time < cout_best:
                     self.best_ant = copy.deepcopy(ant1)
                     self.best_ant2 = copy.deepcopy(ant2)
-                    performance_best = -(self.best_ant.total_distance + self.best_ant2.total_distance) \
-                                       + 1 /(1 / self.best_ant.trajet_habitant + 1 / self.best_ant2.trajet_habitant)
+                    cout_best = self.best_ant.total_distance + self.best_ant2.total_distance \
+                                       - 1 /(1 / self.best_ant.trajet_habitant + 1 / self.best_ant2.trajet_habitant)
+                    self.__label_cout.config(text = 'Coût de solution : %.2f'%(cout_best))
             # MAJ de phéromone
             self.__update_pheromone_gragh()
             # lier des points
@@ -535,6 +569,9 @@ class TSP(object):
                 self.__running = False
                 self.line(self.best_ant.path, "ForestGreen", 3)
                 self.line_2(self.best_ant2.path, "#a52a2a", 3)
+        self.__boutonSearch.config(state = NORMAL)
+        self.__boutonCentral.config(state = NORMAL)
+
 
     # MAJ de pheromone
     def __update_pheromone_gragh(self):
