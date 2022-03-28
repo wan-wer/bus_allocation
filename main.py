@@ -134,6 +134,7 @@ class Ant(object):
         self.clean_data()          # random birth place
         self.gare_centre = gare_centre
         self.ant_another = None  # another ant
+        
 
     def clean_data(self):
 
@@ -151,6 +152,11 @@ class Ant(object):
         city_tuple = tuple(self.arrets.location[city_index])
         self.trajet_habitant = self.arrets.habitant[city_tuple] # the sum of numbers of those stops that ant has passed
         self.cout = 0.5*self.total_distance + 0.5*self.trajet_habitant
+    # add accompanied ant
+    def add_another(self, another_ant):
+        self.ant_another = another_ant
+        self.ant_another.open_table_city[self.path[0]] = False
+        
     # next city
     def choice_next_city(self):
 
@@ -470,16 +476,16 @@ class TSP(object):
                      range(ant_num)]  # initialisation colonie fourmie, the first colony
         self.ants2 = [Ant(ID, self.arrets, self.centrale_index) for ID in range(ant_num, 2 * ant_num)]  # the second colony
         for i in range(ant_num):
-            self.ants[i].ant_another = self.ants2[i]
-            self.ants2[i].ant_another = self.ants[i]
+            self.ants[i].add_another(self.ants2[i])
+            self.ants2[i].add_another(self.ants[i])
 
         self.best_ant = Ant(-1, self.arrets)
         self.best_ant.cout = 1 << 31
         self.best_ant2 = Ant(-2, self.arrets)
         self.best_ant2.cout = 1 << 31
         self.iter = 1  # initialisation nombre iteration
-        # the better the two ants behave, the smaller the valeur of the performance is 
-        performance_best = 1 << 31
+        # the better the two ants behave, the bigger the value of the performance is, the better the ant is. 
+        performance_best = -1 << 31
 
         while self.__running:
             for index_ant in range(ant_num):
@@ -510,12 +516,12 @@ class TSP(object):
                 # mise à jour de meilleure solution
                 # if the civilians that two bus transport is more balanced,
                 # the performance is better
-                performance_this_time = ant1.total_distance + ant2.total_distance\
+                performance_this_time = -(ant1.total_distance + ant2.total_distance)\
                                         + 1/(1/ant1.trajet_habitant+1/ant2.trajet_habitant)
-                if performance_this_time < performance_best:
+                if performance_this_time > performance_best:
                     self.best_ant = copy.deepcopy(ant1)
                     self.best_ant2 = copy.deepcopy(ant2)
-                    performance_best = self.best_ant.total_distance + self.best_ant2.total_distance \
+                    performance_best = -(self.best_ant.total_distance + self.best_ant2.total_distance) \
                                        + 1 /(1 / self.best_ant.trajet_habitant + 1 / self.best_ant2.trajet_habitant)
             # MAJ de phéromone
             self.__update_pheromone_gragh()
